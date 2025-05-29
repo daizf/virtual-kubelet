@@ -29,6 +29,7 @@ import (
 	"github.com/virtual-kubelet/virtual-kubelet/trace"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	corev1informers "k8s.io/client-go/informers/core/v1"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -60,7 +61,7 @@ type PodLifecycleHandler interface {
 	// The Pod returned is expected to be immutable, and may be accessed
 	// concurrently outside of the calling goroutine. Therefore it is recommended
 	// to return a version after DeepCopy.
-	GetPod(ctx context.Context, namespace, name string) (*corev1.Pod, error)
+	GetPod(ctx context.Context, uid types.UID, namespace, name string) (*corev1.Pod, error)
 
 	// GetPodStatus retrieves the status of a pod by name from the provider.
 	// The PodStatus returned is expected to be immutable, and may be accessed
@@ -478,7 +479,12 @@ func (pc *PodController) syncPodFromKubernetesHandler(ctx context.Context, key s
 			return err
 		}
 
-		pod, err = pc.provider.GetPod(ctx, namespace, name)
+		if pod != nil {
+			pod, err = pc.provider.GetPod(ctx, pod.UID, namespace, name)
+		} else {
+			pod, err = pc.provider.GetPod(ctx, "", namespace, name)
+		}
+
 		if err != nil && !errdefs.IsNotFound(err) {
 			err = pkgerrors.Wrapf(err, "failed to fetch pod with key %q from provider", key)
 			span.SetStatus(err)
@@ -514,12 +520,12 @@ func (pc *PodController) syncPodInProvider(ctx context.Context, pod *corev1.Pod,
 
 	// If the pod('s containers) is no longer in a running state then we force-delete the pod from API server
 	// more context is here: https://github.com/virtual-kubelet/virtual-kubelet/pull/760
-	if pod.DeletionTimestamp != nil && !running(&pod.Status) {
-		log.G(ctx).Debug("Force deleting pod from API Server as it is no longer running")
-		key = fmt.Sprintf("%v/%v", key, pod.UID)
-		pc.deletePodsFromKubernetes.EnqueueWithoutRateLimit(ctx, key)
-		return nil
-	}
+	// if pod.DeletionTimestamp != nil && !running(&pod.Status) {
+	// 	log.G(ctx).Debug("Force deleting pod from API Server as it is no longer running")
+	// 	key = fmt.Sprintf("%v/%v", key, pod.UID)
+	// 	pc.deletePodsFromKubernetes.EnqueueWithoutRateLimit(ctx, key)
+	// 	return nil
+	// }
 	obj, ok := pc.knownPods.Load(key)
 	if !ok {
 		// That means the pod was deleted while we were working
