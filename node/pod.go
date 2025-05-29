@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	pkgerrors "github.com/pkg/errors"
+	"github.com/virtual-kubelet/virtual-kubelet/errdefs"
 	"github.com/virtual-kubelet/virtual-kubelet/internal/podutils"
 	"github.com/virtual-kubelet/virtual-kubelet/log"
 	"github.com/virtual-kubelet/virtual-kubelet/trace"
@@ -32,6 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/record"
 )
 
 const (
@@ -87,7 +89,7 @@ func (pc *PodController) createOrUpdatePod(ctx context.Context, pod *corev1.Pod)
 		if !podsEqual(podFromProvider, podForProvider) {
 			log.G(ctx).Debugf("Pod %s exists, updating pod in provider", podFromProvider.Name)
 			if origErr := pc.provider.UpdatePod(ctx, podForProvider); origErr != nil {
-				pc.handleProviderError(ctx, span, origErr, pod)
+				pc.handleProviderError(ctx, span, origErr, pod, pc.recorder)
 				pc.recorder.Event(pod, corev1.EventTypeWarning, podEventUpdateFailed, origErr.Error())
 
 				return origErr
@@ -99,7 +101,7 @@ func (pc *PodController) createOrUpdatePod(ctx context.Context, pod *corev1.Pod)
 	} else {
 		if origErr := pc.provider.CreatePod(ctx, podForProvider); origErr != nil {
 			if !errors.IsAlreadyExists(origErr) {
-				pc.handleProviderError(ctx, span, origErr, pod)
+				pc.handleProviderError(ctx, span, origErr, pod, pc.recorder)
 				pc.recorder.Event(pod, corev1.EventTypeWarning, podEventCreateFailed, origErr.Error())
 				return origErr
 			}
@@ -156,10 +158,19 @@ func podShouldEnqueue(oldPod, newPod *corev1.Pod) bool {
 	return false
 }
 
-func (pc *PodController) handleProviderError(ctx context.Context, span trace.Span, origErr error, pod *corev1.Pod) {
+func (pc *PodController) handleProviderError(ctx context.Context, span trace.Span, origErr error, pod *corev1.Pod, recorder record.EventRecorder) {
 	podPhase := corev1.PodPending
 	if pod.Spec.RestartPolicy == corev1.RestartPolicyNever {
 		podPhase = corev1.PodFailed
+	}
+
+	errReason := errdefs.Unknown
+	if pe, ok := origErr.(*errdefs.ProviderError); ok {
+		errReason = pe.Reason
+	}
+	recorder.Event(pod, corev1.EventTypeWarning, errReason, origErr.Error())
+	if retryType := errdefs.GetRetryType(origErr); retryType != errdefs.RtNoRetry {
+		return
 	}
 
 	pod.ResourceVersion = "" // Blank out resource version to prevent object has been modified error
