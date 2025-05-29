@@ -148,7 +148,8 @@ func getExecOptions(req *http.Request) (*remotecommand.Options, error) {
 	stdout := req.FormValue(execStdoutParam) == "1"
 	stderr := req.FormValue(execStderrParam) == "1"
 	if tty && stderr {
-		return nil, errors.New("cannot exec with tty and stderr")
+		stderr = false
+		//return nil, errors.New("cannot exec with tty and stderr")
 	}
 
 	if !stdin && !stdout && !stderr {

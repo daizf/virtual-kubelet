@@ -1,12 +1,12 @@
 module github.com/virtual-kubelet/virtual-kubelet
 
-go 1.20
+go 1.23.0
 
 require (
 	contrib.go.opencensus.io/exporter/jaeger v0.2.1
 	contrib.go.opencensus.io/exporter/ocagent v0.7.0
 	github.com/bombsimon/logrusr/v3 v3.0.0
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.7.0
 	github.com/gorilla/mux v1.8.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pkg/errors v0.9.1
@@ -17,12 +17,12 @@ require (
 	github.com/spf13/cobra v1.6.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.3
-	go.opencensus.io v0.24.0
+	go.opencensus.io v0.22.4
 	go.opentelemetry.io/otel v1.16.0
 	go.opentelemetry.io/otel/sdk v1.16.0
 	go.opentelemetry.io/otel/trace v1.16.0
 	golang.org/x/sync v0.1.0
-	golang.org/x/sys v0.9.0
+	golang.org/x/sys v0.33.0
 	golang.org/x/time v0.3.0
 	google.golang.org/protobuf v1.30.0
 	gotest.tools v2.2.0+incompatible
@@ -36,6 +36,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.7.0 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20190424111038-f61b66f89f4a // indirect

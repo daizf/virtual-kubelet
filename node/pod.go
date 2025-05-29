@@ -83,7 +83,7 @@ func (pc *PodController) createOrUpdatePod(ctx context.Context, pod *corev1.Pod)
 	// Check if the pod is already known by the provider.
 	// NOTE: Some providers return a non-nil error in their GetPod implementation when the pod is not found while some other don't.
 	// Hence, we ignore the error and just act upon the pod if it is non-nil (meaning that the provider still knows about the pod).
-	if podFromProvider, _ := pc.provider.GetPod(ctx, pod.Namespace, pod.Name); podFromProvider != nil {
+	if podFromProvider, _ := pc.provider.GetPod(ctx, pod.UID, pod.Namespace, pod.Name); podFromProvider != nil {
 		if !podsEqual(podFromProvider, podForProvider) {
 			log.G(ctx).Debugf("Pod %s exists, updating pod in provider", podFromProvider.Name)
 			if origErr := pc.provider.UpdatePod(ctx, podForProvider); origErr != nil {
@@ -98,9 +98,12 @@ func (pc *PodController) createOrUpdatePod(ctx context.Context, pod *corev1.Pod)
 		}
 	} else {
 		if origErr := pc.provider.CreatePod(ctx, podForProvider); origErr != nil {
-			pc.handleProviderError(ctx, span, origErr, pod)
-			pc.recorder.Event(pod, corev1.EventTypeWarning, podEventCreateFailed, origErr.Error())
-			return origErr
+			if !errors.IsAlreadyExists(origErr) {
+				pc.handleProviderError(ctx, span, origErr, pod)
+				pc.recorder.Event(pod, corev1.EventTypeWarning, podEventCreateFailed, origErr.Error())
+				return origErr
+			}
+			return nil
 		}
 		log.G(ctx).Info("Created pod in provider")
 		pc.recorder.Event(pod, corev1.EventTypeNormal, podEventCreateSuccess, "Create pod in provider successfully")
