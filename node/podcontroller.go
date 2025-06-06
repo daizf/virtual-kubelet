@@ -413,6 +413,20 @@ func (pc *PodController) Run(ctx context.Context, podSyncWorkers int) (retErr er
 	// If by any reason the provider fails to delete a dangling pod, it will stay in the provider and deletion won't be retried.
 	pc.deleteDanglingPods(ctx, podSyncWorkers)
 
+	// reconcile periodically to avold undeleted eci pods
+	reconcileTick := time.NewTicker(20 * time.Minute)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				reconcileTick.Stop()
+				return
+			case <-reconcileTick.C:
+				pc.deleteDanglingPods(ctx, podSyncWorkers)
+			}
+		}
+	}()
+
 	log.G(ctx).Info("starting workers")
 	group := &wait.Group{}
 	group.StartWithContext(ctx, func(ctx context.Context) {
@@ -602,8 +616,8 @@ func (pc *PodController) deleteDanglingPods(ctx context.Context, threadiness int
 	// Iterate over the pods known to the provider, marking for deletion those that don't exist in Kubernetes.
 	// Take on this opportunity to populate the list of key that correspond to pods known to the provider.
 	for _, pp := range pps {
-		if _, err := pc.podsLister.Pods(pp.Namespace).Get(pp.Name); err != nil {
-			if errors.IsNotFound(err) {
+		if po, err := pc.podsLister.Pods(pp.Namespace).Get(pp.Name); err != nil {
+			if errors.IsNotFound(err) || po.DeletionTimestamp != nil {
 				// The current pod does not exist in Kubernetes, so we mark it for deletion.
 				ptd = append(ptd, pp)
 				continue
