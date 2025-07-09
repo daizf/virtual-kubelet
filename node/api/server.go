@@ -166,7 +166,7 @@ type PodMetricsConfig struct {
 // these routes get called by the Kubernetes API server.
 func AttachPodMetricsRoutes(p PodMetricsConfig, mux ServeMux) {
 	mux.Handle("/", InstrumentHandler(HandlePodStatsSummary(p.GetStatsSummary)))
-	mux.Handle("/", InstrumentHandler(HandlePodMetricsResource(p.GetMetricsResource)))
+	//mux.Handle("/", InstrumentHandler(HandlePodMetricsResource(p.GetMetricsResource)))
 }
 
 func instrumentRequest(r *http.Request) *http.Request {
